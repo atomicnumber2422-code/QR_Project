@@ -1,16 +1,22 @@
 <!DOCTYPE html>
 
 <button onclick="getLocation()"> Mark Location </button>
+
 <p><strong>Latitude:</strong><span id="lat">-</span></p>
 <p><strong>Longitude:</strong><span id="lon">-</span></p>
 <p><strong>Accuracy:</strong><span id="acc">-</span>meters</p>
+<p id="status"></p>
 
 <script>
 function getLocation(){
+	const status = document.getElementById("status");
+	
 	if (!navigator.geolocation){
 	alert("Geolocation is not supported by your browser.");
 	return;
 	}
+
+	status.textContent = "Requesting location...";
 	
 	navigator.geolocation.getCurrentPosition(
 		pos => {
@@ -22,15 +28,17 @@ function getLocation(){
 				
 			document.getElementById("acc").textContent =
 				pos.coords.accuracy.toFixed(1);
+			status.textContent = "Location received";
 		},
 		err => {
-			alert("Error getting location: " + err.message);
-		};
+			status.textCOntent = "Error: " + err.message + " (code " + err.code + ")";
+		},
 		{
-			enableHighAccuracy: true
+			enableHighAccuracy: true, timeout:10000
 		}
 	);
 }
 </script>
 
 </html>
+
