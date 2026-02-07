@@ -553,8 +553,11 @@
                         initMap(position.coords.latitude, position.coords.longitude);
                     }
                     
-                    // Add point to route (not pinned)
-                    addPoint(position, false);
+                    // Mark the very first point as pinned (starting point)
+                    const isFirstPoint = route.length === 0;
+                    
+                    // Add point to route (first point is automatically pinned)
+                    addPoint(position, isFirstPoint);
                 },
                 (error) => {
                     // Error callback - GPS failed
@@ -573,6 +576,11 @@
          * Stops GPS tracking and updates UI
          */
         stopBtn.addEventListener('click', () => {
+            // Mark the current position as the ending point before stopping
+            if (currentPosition && route.length > 0) {
+                addPoint(currentPosition, true);
+            }
+            
             // Stop watching GPS position
             if (watchId !== null) {
                 navigator.geolocation.clearWatch(watchId);
