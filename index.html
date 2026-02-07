@@ -1,44 +1,663 @@
 <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Route Tracker</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-<button onclick="getLocation()"> Mark Location </button>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
 
-<p><strong>Latitude:</strong><span id="lat">-</span></p>
-<p><strong>Longitude:</strong><span id="lon">-</span></p>
-<p><strong>Accuracy:</strong><span id="acc">-</span>meters</p>
-<p id="status"></p>
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 30px;
+            max-width: 500px;
+            width: 100%;
+        }
 
-<script>
-function getLocation(){
-	const status = document.getElementById("status");
-	
-	if (!navigator.geolocation){
-	alert("Geolocation is not supported by your browser.");
-	return;
-	}
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 28px;
+        }
 
-	status.textContent = "Requesting location...";
-	
-	navigator.geolocation.getCurrentPosition(
-		pos => {
-			document.getElementById("lat").textContent =
-				pos.coords.latitude.toFixed(6);
-				
-			document.getElementById("lon").textContent =
-				pos.coords.longitude.toFixed(6);
-				
-			document.getElementById("acc").textContent =
-				pos.coords.accuracy.toFixed(1);
-			status.textContent = "Location received";
-		},
-		err => {
-			status.textCOntent = "Error: " + err.message + " (code " + err.code + ")";
-		},
-		{
-			enableHighAccuracy: true, timeout:10000
-		}
-	);
-}
-</script>
+        .status {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
 
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            background: #ccc;
+        }
+
+        .status-indicator.recording {
+            background: #ef4444;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        button {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        #startBtn {
+            background: #10b981;
+            color: white;
+        }
+
+        #startBtn:hover:not(:disabled) {
+            background: #059669;
+            transform: translateY(-2px);
+        }
+
+        #stopBtn {
+            background: #ef4444;
+            color: white;
+        }
+
+        #stopBtn:hover:not(:disabled) {
+            background: #dc2626;
+            transform: translateY(-2px);
+        }
+
+        #pinBtn {
+            background: #f59e0b;
+            color: white;
+            font-size: 20px;
+        }
+
+        #pinBtn:hover:not(:disabled) {
+            background: #d97706;
+            transform: translateY(-2px);
+        }
+
+        #clearBtn {
+            background: #6b7280;
+            color: white;
+        }
+
+        #clearBtn:hover {
+            background: #4b5563;
+            transform: translateY(-2px);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-box {
+            background: #f9fafb;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #6b7280;
+            margin-bottom: 5px;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #333;
+        }
+
+        .route-list {
+            background: #f9fafb;
+            border-radius: 10px;
+            padding: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .route-list h3 {
+            margin-bottom: 10px;
+            color: #333;
+            font-size: 16px;
+        }
+
+        .route-point {
+            background: white;
+            padding: 10px;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            font-size: 13px;
+            border-left: 3px solid #667eea;
+        }
+
+        .route-point.pinned {
+            border-left: 3px solid #f59e0b;
+            background: #fffbeb;
+        }
+
+        .route-point:last-child {
+            margin-bottom: 0;
+        }
+
+        .coords {
+            color: #4b5563;
+            font-family: 'Courier New', monospace;
+        }
+
+        .timestamp {
+            color: #9ca3af;
+            font-size: 11px;
+            margin-top: 5px;
+        }
+
+        .download-btn {
+            width: 100%;
+            margin-top: 15px;
+            background: #3b82f6;
+            color: white;
+        }
+
+        .download-btn:hover:not(:disabled) {
+            background: #2563eb;
+        }
+
+        .map-container {
+            width: 100%;
+            height: 400px;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            background: #f3f4f6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #6b7280;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+
+        .error {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📍 Route Tracker</h1>
+        
+        <div id="error" class="error" style="display: none;"></div>
+        
+        <div class="status">
+            <span class="status-indicator" id="statusIndicator"></span>
+            <span id="statusText">Ready to track</span>
+        </div>
+
+        <div class="controls">
+            <button id="startBtn">Start Recording</button>
+            <button id="stopBtn" disabled>Stop Recording</button>
+        </div>
+
+        <button id="pinBtn" disabled>📍 Mark Pin Point</button>
+
+        <button id="clearBtn">Clear Route</button>
+
+        <div class="stats">
+            <div class="stat-box">
+                <div class="stat-label">Points Recorded</div>
+                <div class="stat-value" id="pointCount">0</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Pin Points</div>
+                <div class="stat-value" id="pinCount">0</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Duration</div>
+                <div class="stat-value" id="duration">0:00</div>
+            </div>
+        </div>
+
+        <div class="map-container">
+            <div id="map">Map will appear when recording starts</div>
+        </div>
+
+        <div class="route-list">
+            <h3>Recorded Route</h3>
+            <div id="routePoints">No points recorded yet</div>
+        </div>
+
+        <button class="download-btn" id="downloadBtn" disabled>Download Route (JSON)</button>
+    </div>
+
+    <script>
+        // ===== STATE VARIABLES =====
+        // Store all recorded GPS points (both automatic and manual pins)
+        let route = [];
+        
+        // Track whether GPS recording is currently active
+        let isRecording = false;
+        
+        // ID for the GPS watch (used to stop tracking later)
+        let watchId = null;
+        
+        // Timestamp when recording started (for duration calculation)
+        let startTime = null;
+        
+        // Interval timer for updating the duration display
+        let durationInterval = null;
+        
+        // Store the most recent GPS position
+        let currentPosition = null;
+        
+        // Leaflet map instance
+        let map = null;
+        
+        // Polyline showing the route path on the map
+        let routeLine = null;
+        
+        // Array of all map markers (start, current position, pins)
+        let markers = [];
+
+        // ===== DOM ELEMENT REFERENCES =====
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const pinBtn = document.getElementById('pinBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const statusText = document.getElementById('statusText');
+        const statusIndicator = document.getElementById('statusIndicator');
+        const pointCount = document.getElementById('pointCount');
+        const pinCount = document.getElementById('pinCount');
+        const durationEl = document.getElementById('duration');
+        const routePoints = document.getElementById('routePoints');
+        const errorEl = document.getElementById('error');
+
+        /**
+         * Initialize the Leaflet map
+         * @param {number} lat - Initial latitude
+         * @param {number} lng - Initial longitude
+         */
+        function initMap(lat, lng) {
+            // Only create map once
+            if (!map) {
+                // Create map centered on user's initial position
+                map = L.map('map').setView([lat, lng], 16);
+                
+                // Add OpenStreetMap tile layer
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors',
+                    maxZoom: 19
+                }).addTo(map);
+            }
+        }
+
+        /**
+         * Update the map with current route and markers
+         * Redraws the route line and all markers
+         */
+        function updateMap() {
+            if (!map || route.length === 0) return;
+
+            // Remove old route line if it exists
+            if (routeLine) {
+                map.removeLayer(routeLine);
+            }
+
+            // Remove all existing markers (start, pins, current position)
+            markers.forEach(marker => map.removeLayer(marker));
+            markers = [];
+
+            // Create array of coordinates for the route line
+            const coordinates = route.map(point => [point.lat, point.lng]);
+            
+            // Draw purple line connecting all points
+            routeLine = L.polyline(coordinates, {
+                color: '#667eea',
+                weight: 4,
+                opacity: 0.7
+            }).addTo(map);
+
+            // Add markers only for pinned locations
+            route.forEach((point, index) => {
+                if (point.pinned) {
+                    // Create custom orange pin marker
+                    const marker = L.marker([point.lat, point.lng], {
+                        icon: L.divIcon({
+                            className: 'custom-pin-icon',
+                            html: `<div style="background: #f59e0b; color: white; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">📍</div>`,
+                            iconSize: [30, 30]
+                        })
+                    }).addTo(map);
+                    
+                    // Add popup with pin details
+                    marker.bindPopup(`<b>Pin Point ${route.filter((p, i) => p.pinned && i <= index).length}</b><br>Lat: ${point.lat.toFixed(6)}<br>Lng: ${point.lng.toFixed(6)}<br>${new Date(point.timestamp).toLocaleTimeString()}`);
+                    markers.push(marker);
+                }
+            });
+
+            // Add green "S" marker at the starting point
+            if (route.length > 0) {
+                const startMarker = L.marker([route[0].lat, route[0].lng], {
+                    icon: L.divIcon({
+                        className: 'custom-start-icon',
+                        html: `<div style="background: #10b981; color: white; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">S</div>`,
+                        iconSize: [30, 30]
+                    })
+                }).addTo(map);
+                startMarker.bindPopup('<b>Start Point</b>');
+                markers.push(startMarker);
+            }
+
+            // Add blue pulsing marker at current position (only while recording)
+            if (isRecording && currentPosition) {
+                const currentMarker = L.marker([currentPosition.coords.latitude, currentPosition.coords.longitude], {
+                    icon: L.divIcon({
+                        className: 'custom-current-icon',
+                        html: `<div style="background: #3b82f6; color: white; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); animation: pulse 2s infinite;">●</div>`,
+                        iconSize: [30, 30]
+                    })
+                }).addTo(map);
+                currentMarker.bindPopup('<b>Current Position</b>');
+                markers.push(currentMarker);
+                
+                // Keep map centered on current position
+                map.setView([currentPosition.coords.latitude, currentPosition.coords.longitude], map.getZoom());
+            }
+
+            // Auto-zoom to fit entire route on screen
+            if (coordinates.length > 1) {
+                map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
+            }
+        }
+
+        /**
+         * Display error message to user
+         * @param {string} message - Error message to display
+         */
+        function showError(message) {
+            errorEl.textContent = message;
+            errorEl.style.display = 'block';
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                errorEl.style.display = 'none';
+            }, 5000);
+        }
+
+        /**
+         * Update the duration timer display
+         * Calculates elapsed time since recording started
+         */
+        function updateDuration() {
+            if (!startTime) return;
+            
+            // Calculate elapsed time in seconds
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            const minutes = Math.floor(elapsed / 60);
+            const seconds = elapsed % 60;
+            
+            // Format as M:SS
+            durationEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        /**
+         * Add a new point to the route
+         * @param {GeolocationPosition} position - GPS position object from browser
+         * @param {boolean} isPinned - Whether this is a manually marked pin point
+         */
+        function addPoint(position, isPinned = false) {
+            // Create point object with GPS data
+            const point = {
+                lat: position.coords.latitude,
+                lng: position.coords.longitude,
+                accuracy: position.coords.accuracy, // GPS accuracy in meters
+                timestamp: new Date().toISOString(), // ISO 8601 format timestamp
+                pinned: isPinned // Mark if this was manually pinned
+            };
+
+            // Add to route array
+            route.push(point);
+            
+            // Update UI and map
+            updateUI();
+            updateMap();
+        }
+
+        /**
+         * Update all UI elements with current data
+         * Refreshes counters and point list
+         */
+        function updateUI() {
+            const totalPoints = route.length;
+            const pinnedPoints = route.filter(p => p.pinned).length;
+            
+            // Update stat counters
+            pointCount.textContent = totalPoints;
+            pinCount.textContent = pinnedPoints;
+
+            // Update route points list
+            if (route.length === 0) {
+                routePoints.innerHTML = 'No points recorded yet';
+                downloadBtn.disabled = true;
+            } else {
+                // Create list items for each point (newest first)
+                routePoints.innerHTML = route.map((point, index) => `
+                    <div class="route-point ${point.pinned ? 'pinned' : ''}">
+                        <strong>${point.pinned ? '📍 PIN ' : 'Point '}${index + 1}</strong><br>
+                        <span class="coords">
+                            Lat: ${point.lat.toFixed(6)}<br>
+                            Lng: ${point.lng.toFixed(6)}
+                        </span>
+                        <div class="timestamp">${new Date(point.timestamp).toLocaleTimeString()}</div>
+                    </div>
+                `).reverse().join('');
+                downloadBtn.disabled = false;
+            }
+        }
+
+        // ===== EVENT HANDLERS =====
+
+        /**
+         * START RECORDING
+         * Begins GPS tracking and initializes the map
+         */
+        startBtn.addEventListener('click', () => {
+            // Check if browser supports geolocation
+            if (!navigator.geolocation) {
+                showError('Geolocation is not supported by your browser');
+                return;
+            }
+
+            // Update state
+            isRecording = true;
+            startTime = Date.now();
+            
+            // Update UI
+            statusText.textContent = 'Recording...';
+            statusIndicator.classList.add('recording');
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            pinBtn.disabled = false;
+
+            // Start duration timer (updates every second)
+            durationInterval = setInterval(updateDuration, 1000);
+
+            // Start watching GPS position
+            // This continuously tracks the user's location
+            watchId = navigator.geolocation.watchPosition(
+                (position) => {
+                    // Success callback - new position received
+                    currentPosition = position;
+                    
+                    // Initialize map on first GPS fix
+                    if (!map) {
+                        initMap(position.coords.latitude, position.coords.longitude);
+                    }
+                    
+                    // Add point to route (not pinned)
+                    addPoint(position, false);
+                },
+                (error) => {
+                    // Error callback - GPS failed
+                    showError(`GPS Error: ${error.message}`);
+                },
+                {
+                    enableHighAccuracy: true, // Use GPS instead of WiFi/cell towers
+                    maximumAge: 0, // Don't use cached positions
+                    timeout: 5000 // Wait max 5 seconds for position
+                }
+            );
+        });
+
+        /**
+         * STOP RECORDING
+         * Stops GPS tracking and updates UI
+         */
+        stopBtn.addEventListener('click', () => {
+            // Stop watching GPS position
+            if (watchId !== null) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+            }
+
+            // Update state
+            isRecording = false;
+            currentPosition = null;
+            clearInterval(durationInterval);
+            
+            // Update UI
+            statusText.textContent = 'Recording stopped';
+            statusIndicator.classList.remove('recording');
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            pinBtn.disabled = true;
+            
+            // Update map to remove current position marker
+            updateMap();
+        });
+
+        /**
+         * MARK PIN POINT
+         * Manually marks the current location as important
+         */
+        pinBtn.addEventListener('click', () => {
+            if (currentPosition) {
+                // Add current position as a pinned point
+                addPoint(currentPosition, true);
+                
+                // Visual feedback - button press animation
+                pinBtn.style.transform = 'scale(0.95)';
+                setTimeout(() => {
+                    pinBtn.style.transform = 'scale(1)';
+                }, 100);
+            } else {
+                // No GPS position available yet
+                showError('Waiting for GPS location...');
+            }
+        });
+
+        /**
+         * CLEAR ROUTE
+         * Deletes all recorded points and resets the app
+         */
+        clearBtn.addEventListener('click', () => {
+            // Confirm before deleting
+            if (confirm('Are you sure you want to clear the recorded route?')) {
+                // Reset route data
+                route = [];
+                startTime = null;
+                durationEl.textContent = '0:00';
+                
+                // Clear map elements
+                if (map) {
+                    if (routeLine) {
+                        map.removeLayer(routeLine);
+                        routeLine = null;
+                    }
+                    markers.forEach(marker => map.removeLayer(marker));
+                    markers = [];
+                }
+                
+                // Update UI
+                updateUI();
+            }
+        });
+
+        /**
+         * DOWNLOAD ROUTE
+         * Exports route data as JSON file
+         */
+        downloadBtn.addEventListener('click', () => {
+            // Convert route array to formatted JSON string
+            const dataStr = JSON.stringify(route, null, 2);
+            
+            // Create downloadable blob
+            const dataBlob = new Blob([dataStr], {type: 'application/json'});
+            const url = URL.createObjectURL(dataBlob);
+            
+            // Trigger download with timestamp in filename
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `route_${new Date().toISOString()}.json`;
+            link.click();
+            
+            // Clean up
+            URL.revokeObjectURL(url);
+        });
+    </script>
+</body>
 </html>
-
