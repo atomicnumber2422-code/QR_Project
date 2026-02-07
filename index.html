@@ -489,22 +489,27 @@
             pointCount.textContent = totalPoints;
             pinCount.textContent = pinnedPoints;
 
-            // Update route points list
-            if (route.length === 0) {
-                routePoints.innerHTML = 'No points recorded yet';
-                downloadBtn.disabled = true;
+            // Update route points list - only show pinned points
+            const pinnedPointsOnly = route.filter(p => p.pinned);
+            
+            if (pinnedPointsOnly.length === 0) {
+                routePoints.innerHTML = 'No pin points marked yet';
+                downloadBtn.disabled = route.length === 0; // Enable download if we have any points
             } else {
-                // Create list items for each point (newest first)
-                routePoints.innerHTML = route.map((point, index) => `
-                    <div class="route-point ${point.pinned ? 'pinned' : ''}">
-                        <strong>${point.pinned ? '📍 PIN ' : 'Point '}${index + 1}</strong><br>
+                // Create list items only for pinned points (newest first)
+                routePoints.innerHTML = pinnedPointsOnly.map((point, index) => {
+                    // Find the original index in the full route
+                    const originalIndex = route.indexOf(point);
+                    return `
+                    <div class="route-point pinned">
+                        <strong>📍 PIN ${index + 1}</strong> (Point ${originalIndex + 1} in route)<br>
                         <span class="coords">
                             Lat: ${point.lat.toFixed(6)}<br>
                             Lng: ${point.lng.toFixed(6)}
                         </span>
                         <div class="timestamp">${new Date(point.timestamp).toLocaleTimeString()}</div>
                     </div>
-                `).reverse().join('');
+                `}).reverse().join('');
                 downloadBtn.disabled = false;
             }
         }
